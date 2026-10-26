@@ -1,0 +1,37 @@
+# THREAD (MERN rebuild) - root .gitignore
+# rule of the repo (bee1/agents/AGENTS.md): no secrets ever enter the repo -
+# .env files stay local; only .env.example files are committed.
+
+# dependencies
+node_modules/
+
+# environment / secrets (never commit; keep .env.example)
+.env
+.env.*
+!.env.example
+
+# builds + tooling output
+dist/
+build/
+coverage/
+.vite/
+
+# runtime data (legacy local uploads; new admin imagery is stored in Cloudinary)
+logs/
+*.log
+server/uploads/
+
+# editor / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# throwaway diagnostics
+**/scratch-*
+backend-ownership.txt
+tmp-*
+**/tmp-*
+
+
