@@ -7,11 +7,9 @@ import { ensureDns } from './core/dns.js';
 import { connectDb, disconnectDb } from './core/db.js';
 import { Product } from './models/productModel.js';
 import { Order } from './models/orderModel.js';
-import { ensureIndex } from './core/elastic.js';
 import { closeRedis } from './core/redis.js';
 import { closeBus } from './core/eventBus.js';
 import { createApp } from './core/app.js';
-import { registerSearchConsumers } from './modules/search/searchConsumers.js';
 import { registerEmailConsumers } from './modules/emails/consumers.js';
 
 const boot = async () => {
@@ -24,14 +22,7 @@ const boot = async () => {
   } catch (err) {
     logger.warn({ err: err.message }, 'index build failed - Mongo list/search fallback degraded');
   }
-  registerSearchConsumers();
   registerEmailConsumers();
-
-  try {
-    await ensureIndex();
-  } catch (err) {
-    logger.warn({ err: err.message }, 'Elasticsearch index not available now - q search will serve from the Mongo fallback');
-  }
 
   const app = createApp();
   const server = app.listen(env.PORT, () => {

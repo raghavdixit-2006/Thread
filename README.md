@@ -19,8 +19,6 @@ Express + Mongoose + Redis on the back. The original server-rendered demo is pre
 # 1. data services live in the CLOUD (or run by hand) - nothing to compose:
 #    MONGO_URI = MongoDB Atlas SRV URI (or a local replica set via server/infra/init-mongo.js)
 #    REDIS_URL = any cloud/private Redis
-#    Elasticsearch = OPTIONAL infra: when its node is unreachable the API serves
-#    q search + facets straight from Mongo (see Search in What works today)
 #    EMAIL = MAIL_HOST/PORT/USERNAME/PASSWORD/FROM (SMTP) or BREVO_API_KEY; with
 #    neither set, dev prints emails to the server console instead of sending
 
@@ -85,14 +83,10 @@ JWT_REFRESH_SECRET=<32+ random chars>
 HOST_URL=https://your-botkeep-host
 CORS_ORIGINS=https://your-app.vercel.app
 CLIENT_URL=https://your-app.vercel.app
-
-# optional
-ELASTIC_NODE=https://...
 ```
 
-`ELASTIC_NODE` is optional: leave it out and the API serves search from the Mongo fallback.
-The server refuses to boot without the five required keys, and the startup error names each
-missing one. The panel's `SERVER_PORT` is used automatically when `PORT` is unset.
+The server refuses to boot without those keys, and the startup error names each missing one.
+The panel's `SERVER_PORT` is used automatically when `PORT` is unset.
 Razorpay, SMTP and Cloudinary keys are optional and degrade gracefully when absent.
 
 #### If the log still says `ENOENT /home/container/package.json`
@@ -128,7 +122,7 @@ The API's `CORS_ORIGINS` must contain the exact Vercel origin. See `docs/CORS.md
 
 - Catalogue with categories, variants (sku/size/color/stock), slugs, faceted shop with sort and pagination
 - Shop filters: independent multi-select category chips behind two toolbar icons (funnel with an active-count badge, cross to clear all) plus sizes, ratings, multi-price bounds and search facets
-- Search (`q`) runs WITH or WITHOUT Elasticsearch: the ES read model (typo fuzziness, prefix autocomplete, facet aggregations) when reachable, otherwise the same response contract served from Mongo (weighted text index + title/brand prefix pass + aggregation facets; no fuzziness there) - the API boots and the whole shop stays usable with zero ES, and `/api/health` reports which engine served
+- Search (`q`) runs entirely on Mongo: weighted text index for relevance plus a title/brand prefix pass for live typing, with the same facet buckets, price stats and histogram as the rest of the shop. There is no external search cluster to run or keep in sync; `/api/health` reports `search: "mongo"`
 - Auth: JWT access token in memory, single-use rotating refresh tokens (httpOnly cookie), silent refresh,
   parallel-tab safe rotation chain, reuse detection with family revocation; guests-only `/auth` (signed-in
   users bounce to the deep-linked `next` target) and an always-visible Sign out control
@@ -203,6 +197,6 @@ Transactional email is implemented: SMTP via `MAIL_*` (nodemailer), Brevo REST v
 `BREVO_API_KEY` as fallback, console logging in dev when neither is set. Online payments landed
 9 Nov - COD default,
 Razorpay beside it - with the live test-mode purchase round still pending a reachable server.
-Elasticsearch is an OPTIONAL read model: live when its node is up, replaced by the in-server Mongo
-fallback (same response contract) when it is not; Mongo is the source of truth either way.
+Search is served by Mongo (text index + prefix pass + aggregation facets), so there is no
+separate search service to operate.
 Architecture decisions and their reasoning: `bee1/agents/project.md` (sections 3.6 and 8).

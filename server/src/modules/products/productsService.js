@@ -1,13 +1,10 @@
 // modules/products/productsService.js - catalog business rules + admin CRUD.
 import { publish, topics } from '../../core/eventBus.js';
 import { badRequest, notFound } from '../../core/httpError.js';
-import { logger } from '../../core/logger.js';
 import { Product } from '../../models/productModel.js';
-import { search as elasticSearch } from '../search/searchService.js';
-import { search as mongoSearch } from '../search/mongoSearchService.js';
+import { search as searchProducts } from '../search/mongoSearchService.js';
 import { saveUploadedImage, saveUploadedImages, unsaveUploadedImageByUrl } from './imageUploads.js';
 import * as dal from './productsDal.js';
-import { toElasticDoc } from './productDto.js';
 
 const slugify = (title) =>
   title
@@ -27,19 +24,11 @@ async function uniqueSlug(title, exceptSlug = null) {
   throw badRequest('Could not derive a unique slug for this title');
 }
 
-/** listing: catalog filters via Elasticsearch (when q is present) else Mongo index scan */
+/** listing: q search + facets run on Mongo (weighted text index, prefix pass); no q uses the index scan */
 export async function listProducts(input) {
   if (input.q) {
-    // typo-tolerant + faceted search on the ES read model; Elasticsearch is
-    // OPTIONAL infra now - small hosts run without it, so an unreachable ES
-    // falls back to the Mongo catalogue (same contract, see project.md §8)
-    try {
-      return await elasticSearch(input);
-    } catch (err) {
-      if (err.status !== 503) throw err;
-      logger.warn({ q: input.q }, 'elasticsearch unavailable - q search served from the Mongo fallback');
-      return mongoSearch(input);
-    }
+    // faceted, relevance-sorted search straight from the catalogue (source of truth)
+    return searchProducts(input);
   }
   const { category, categories, brand, sizes, colors, minPrice, maxPrice, minRating, featured, sort, page, limit } = input;
   const filters = {};
@@ -313,5 +302,3 @@ export async function adminProduct(slug) {
   if (!product) throw notFound('Product not found');
   return dal.toPublicProduct(product);
 }
-
-export { toElasticDoc };

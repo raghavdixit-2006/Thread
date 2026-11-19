@@ -1,4 +1,4 @@
-// services/productsApi.js - catalog reads (Mongo listing; q facets from Elasticsearch or the Mongo fallback).
+// services/productsApi.js - catalog reads (Mongo listing; q search + facets served by Mongo).
 // List response data: { items, meta: {total, page, limit, pages}, facets? }
 import { createApi } from '@reduxjs/toolkit/query/react';
 import { axiosBaseQuery } from './axiosBaseQuery.js';

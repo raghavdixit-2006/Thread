@@ -1,5 +1,5 @@
 // seed/seed.js - admin-only seeder: upserts the single staff account from env, nothing else.
-// Products, ES reindexing, coupons and demo users are deliberately NOT seeded here
+// Products, coupons and demo users are deliberately NOT seeded here
 // (`npm run seed:policies` remains for the legal policy documents). Run: npm run seed
 import 'dotenv/config';
 import { ensureDns } from '../core/dns.js';

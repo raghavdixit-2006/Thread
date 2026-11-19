@@ -2,7 +2,7 @@
   "name": "thread-server",
   "version": "1.0.0",
   "private": true,
-  "description": "THREAD - Express + MongoDB + Redis + Elasticsearch e-commerce API",
+  "description": "THREAD - Express + MongoDB + Redis e-commerce API",
   "type": "module",
   "main": "src/server.js",
   "engines": {
@@ -15,7 +15,6 @@
     "seed:policies": "node src/seed/policies.js"
   },
   "dependencies": {
-    "@elastic/elasticsearch": "^8.19.0",
     "@node-rs/bcrypt": "^2.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
