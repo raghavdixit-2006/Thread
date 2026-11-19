@@ -51,14 +51,22 @@ The repo root is an npm project that owns the API install, so a panel that runs
 
 - `package.json` (root): `npm start` runs the API, `postinstall` installs `server/` dependencies.
 - `package-lock.json` (root): empty by design; the API lock lives in `server/package-lock.json`.
+- `scripts/ensure-deps.mjs`: `prestart` guard; installs `server/` dependencies only when they are
+  missing, so a panel that runs its install step with `--ignore-scripts` still boots.
+- `start.sh`: LF-normalized shell entrypoint (`.gitattributes`); use it when the panel runs the
+  startup command from an unknown working directory.
 - `server/src/core/env.js`: `PORT` falls back to the panel's `SERVER_PORT` when `PORT` is unset.
 
 ### API on Botkeep (Pterodactyl)
 
-Startup command, either of these:
+Startup command, any one of these:
 
 ```bash
 npm start
+```
+
+```bash
+sh start.sh
 ```
 
 ```bash
@@ -80,6 +88,23 @@ CLIENT_URL=https://your-app.vercel.app
 
 `ELASTIC_NODE` is optional: without it the API serves search from the Mongo fallback.
 Razorpay, SMTP and Cloudinary keys are optional and degrade gracefully when absent.
+
+#### If the log still says `ENOENT /home/container/package.json`
+
+That error means the container has **no files at all**, so the panel is not pulling this
+repository. It is not a code problem: `package.json` is committed at the repo root on `main`.
+Check the panel's file manager (or console `ls -a /home/container`); an empty listing confirms it.
+
+Fix it in the panel, not in the repo:
+
+1. GitHub tab: install the Botkeep GitHub App for `raghavdixit-2006/Thread` and import it.
+2. Repository `raghavdixit-2006/Thread`, branch `main`, project root `/` (the root `package.json`)
+   or `/server` if you prefer the API folder.
+3. Enable pull-on-start (or "apply latest revision"), then restart the workload.
+4. Confirm the file manager now shows `package.json`, `server/`, `client/`.
+5. Start command: `npm start` (root) or `npm start` inside `server/`.
+
+A push to `main` only reaches the container when pull-on-start or push updates are enabled.
 
 ### Client on Vercel
 
