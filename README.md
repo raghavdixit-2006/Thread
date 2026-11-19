@@ -76,17 +76,23 @@ cd server && npm install && npm start
 Node 20 or newer is required. Set the environment in the panel (or upload `server/.env`):
 
 ```env
+# required
 NODE_ENV=production
 MONGO_URI=mongodb+srv://...
 REDIS_URL=rediss://...
-ELASTIC_NODE=https://...
-JWT_ACCESS_SECRET=...
-JWT_REFRESH_SECRET=...
+JWT_ACCESS_SECRET=<32+ random chars>
+JWT_REFRESH_SECRET=<32+ random chars>
+HOST_URL=https://your-botkeep-host
 CORS_ORIGINS=https://your-app.vercel.app
 CLIENT_URL=https://your-app.vercel.app
+
+# optional
+ELASTIC_NODE=https://...
 ```
 
-`ELASTIC_NODE` is optional: without it the API serves search from the Mongo fallback.
+`ELASTIC_NODE` is optional: leave it out and the API serves search from the Mongo fallback.
+The server refuses to boot without the five required keys, and the startup error names each
+missing one. The panel's `SERVER_PORT` is used automatically when `PORT` is unset.
 Razorpay, SMTP and Cloudinary keys are optional and degrade gracefully when absent.
 
 #### If the log still says `ENOENT /home/container/package.json`

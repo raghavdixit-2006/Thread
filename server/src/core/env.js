@@ -32,7 +32,15 @@ const envSchema = z.object({
 
   MONGO_URI: z.string().min(1),
   REDIS_URL: z.string().url(),
-  ELASTIC_NODE: z.string().url(),
+  // Elasticsearch is OPTIONAL: with no node configured the client points at a dead
+  // loopback address, isElasticUp() stays false and search serves from the Mongo
+  // fallback. An empty string would make the ES client throw "Invalid URL" at import.
+  ELASTIC_NODE: z
+    .string()
+    .trim()
+    .default('')
+    .transform((value) => value || 'http://127.0.0.1:9200')
+    .pipe(z.string().url()),
   // used by core/dns.js only when the OS resolver is a dead loopback address
   DNS_SERVERS: z
     .string()
@@ -93,7 +101,10 @@ if (!parsed.success) {
   for (const issue of parsed.error.issues) {
     console.error(`  - ${issue.path.join('.')}: ${issue.message}`);
   }
-  console.error('\nGenerate JWT secrets with: node -e "console.log(require(\'crypto\').randomBytes(48).toString(\'base64url\'))"');
+  console.error('\nRequired keys: MONGO_URI, REDIS_URL, JWT_ACCESS_SECRET, JWT_REFRESH_SECRET.');
+  console.error('On Botkeep/Pterodactyl set them in the panel Environment tab, or upload server/.env.');
+  console.error('ELASTIC_NODE is optional; without it search runs on the Mongo fallback.');
+  console.error('Generate JWT secrets with: node -e "console.log(require(\'crypto\').randomBytes(48).toString(\'base64url\'))"');
   process.exit(1);
 }
 
