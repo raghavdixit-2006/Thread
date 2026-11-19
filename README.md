@@ -44,6 +44,55 @@ npm run dev              # http://localhost:5173
 Test accounts: `asha@test.com` / `pass1234` (customer) · `thread.admin@gmail.com` / `Admin@12345` (admin, seeded by `npm run seed` - the seeder is a single admin upsert, no catalog/test users).
 Seed settings live in `server/.env.example`.
 
+## Deploy
+
+The repo root is an npm project that owns the API install, so a panel that runs
+`npm install` at `/home/container` no longer fails with `ENOENT: package.json`.
+
+- `package.json` (root): `npm start` runs the API, `postinstall` installs `server/` dependencies.
+- `package-lock.json` (root): empty by design; the API lock lives in `server/package-lock.json`.
+- `server/src/core/env.js`: `PORT` falls back to the panel's `SERVER_PORT` when `PORT` is unset.
+
+### API on Botkeep (Pterodactyl)
+
+Startup command, either of these:
+
+```bash
+npm start
+```
+
+```bash
+cd server && npm install && npm start
+```
+
+Node 20 or newer is required. Set the environment in the panel (or upload `server/.env`):
+
+```env
+NODE_ENV=production
+MONGO_URI=mongodb+srv://...
+REDIS_URL=rediss://...
+ELASTIC_NODE=https://...
+JWT_ACCESS_SECRET=...
+JWT_REFRESH_SECRET=...
+CORS_ORIGINS=https://your-app.vercel.app
+CLIENT_URL=https://your-app.vercel.app
+```
+
+`ELASTIC_NODE` is optional: without it the API serves search from the Mongo fallback.
+Razorpay, SMTP and Cloudinary keys are optional and degrade gracefully when absent.
+
+### Client on Vercel
+
+| Setting | Value |
+| --- | --- |
+| Root directory | `client` |
+| Build command | `npm run build` |
+| Output directory | `dist` |
+| `VITE_API_URL` | `https://your-botkeep-host` |
+
+The API's `CORS_ORIGINS` must contain the exact Vercel origin. See `docs/CORS.md`.
+
+
 ## What works today
 
 - Catalogue with categories, variants (sku/size/color/stock), slugs, faceted shop with sort and pagination

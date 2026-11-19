@@ -6,7 +6,8 @@ const DurationRange = z.object({});
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  PORT: z.coerce.number().int().positive().default(5000),
+  // Pterodactyl/Botkeep expose the allocated port as SERVER_PORT; honour it when PORT is unset.
+  PORT: z.coerce.number().int().positive().default(Number(process.env.SERVER_PORT) || 5000),
   HOST_URL: z.string().url().default('http://localhost:5000'),
   // JSON array or comma-separated list; normalized (trimmed, no trailing slash).
   CORS_ORIGINS: z

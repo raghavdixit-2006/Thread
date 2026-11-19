@@ -1,0 +1,16 @@
+{
+  "name": "thread",
+  "version": "1.0.0",
+  "private": true,
+  "description": "THREAD storefront monorepo. The API in server/ is the deployable backend; the client/ SPA ships separately.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "npm --prefix server start",
+    "dev": "npm --prefix server run dev",
+    "seed": "npm --prefix server run seed",
+    "seed:policies": "npm --prefix server run seed:policies",
+    "postinstall": "npm --prefix server install --no-audit --no-fund"
+  }
+}
