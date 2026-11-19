@@ -8,11 +8,25 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(5000),
   HOST_URL: z.string().url().default('http://localhost:5000'),
+  // JSON array or comma-separated list; normalized (trimmed, no trailing slash).
   CORS_ORIGINS: z
     .string()
     .default('["http://localhost:5173"]')
-    .transform((value) => JSON.parse(value))
-    .pipe(z.array(z.string().url().or(z.literal('*')).or(z.regex(/^http:\/\/localhost:\d+$/)))),
+    .transform((value) => {
+      const raw = value.trim();
+      const list = raw.startsWith('[')
+        ? (() => {
+            try {
+              const parsed = JSON.parse(raw);
+              return Array.isArray(parsed) ? parsed : [];
+            } catch {
+              return [];
+            }
+          })()
+        : raw.split(',');
+      return [...new Set(list.map((origin) => String(origin).trim().replace(/\/+$/, '').toLowerCase()).filter(Boolean))];
+    })
+    .pipe(z.array(z.string().url().or(z.literal('*'))).min(1)),
   CLIENT_URL: z.string().url().default('http://localhost:5173'),
 
   MONGO_URI: z.string().min(1),

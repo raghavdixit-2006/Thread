@@ -2,14 +2,13 @@
 // request logging, rate limits, error boundary). Routes are mounted separately.
 import express from 'express';
 import helmet from 'helmet';
-import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import pinoHttp from 'pino-http';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { logger } from './logger.js';
-import { env } from './env.js';
+import { corsMiddleware } from './cors.js';
 import { HttpError, mapMongoError, logInternalError } from './httpError.js';
 import { apiLimiter } from './rateLimit.js';
 import { apiRoutes } from '../routes/index.js';
@@ -31,7 +30,7 @@ export function createApp() {
     }),
   );
 
-  app.use(cors({ origin: (origin, cb) => (!origin || env.CORS_ORIGINS.includes(origin) ? cb(null, true) : cb(new Error('CORS_REJECTED'))), credentials: true }));
+  app.use(corsMiddleware());
 
   // Razorpay webhook verifies an HMAC over the EXACT bytes the gateway signed, so this mount
   // buffers them raw - placed before express.json (which re-parses/re-serializes JSON).
