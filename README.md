@@ -117,6 +117,10 @@ A push to `main` only reaches the container when pull-on-start or push updates a
 
 The API's `CORS_ORIGINS` must contain the exact Vercel origin. See `docs/CORS.md`.
 
+`client/vercel.json` holds the SPA fallback (`/(.*)` -> `/index.html`). Without it Vercel
+returns its own `404 NOT_FOUND` for a deep link such as `/admin/login`, because no file
+exists at that path. Static files in `dist/` are still served first.
+
 
 ## What works today
 
