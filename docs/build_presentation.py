@@ -223,7 +223,7 @@ text(s, 40, 238, 900, 20, "A full-stack storefront with variant-level stock, ser
      size=11, italic=True, color=MUTED, align=PP_ALIGN.CENTER)
 
 names = [("Raghav Dixit", "2410990667"), ("Rahul Gheek", "2410990669"),
-         ("Manav Mandal", "241099xxxx"), ("Sameer Aggarwal", "2410990704")]
+         ("Manav Mandal", "2410990435"), ("Sameer Aggarwal", "2410990705")]
 for i, (name, roll) in enumerate(names):
     col = i % 2
     row = i // 2
@@ -233,7 +233,7 @@ for i, (name, roll) in enumerate(names):
     text(s, cx, cy + 22, 300, 18, f"Roll No. {roll}", size=10.5, color=MUTED, align=PP_ALIGN.CENTER)
 
 text(s, 40, 438, 900, 20, "Supervised By", size=12, align=PP_ALIGN.CENTER)
-text(s, 40, 462, 900, 24, "Dr. Durgesh Srivastava", size=14, bold=True, align=PP_ALIGN.CENTER)
+text(s, 40, 462, 900, 24, "Ms. Anu Thind", size=14, bold=True, align=PP_ALIGN.CENTER)
 text(s, 40, 486, 900, 20, "Professor, Department of CSE, CUIET", size=11, color=MUTED, align=PP_ALIGN.CENTER)
 
 text(s, 40, 584, 900, 24, "Department of Computer Science and Engineering,", size=14, align=PP_ALIGN.CENTER)
@@ -654,7 +654,7 @@ s = add_slide()
 text(s, 40, 260, 880, 100, "Thank You", size=54, bold=False, align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
 text(s, 40, 380, 880, 26, "Questions & Discussion", size=16, align=PP_ALIGN.CENTER, color=MUTED)
 text(s, 40, 470, 880, 22, "Raghav Dixit  ·  Rahul Gheek  ·  Manav Mandal  ·  Sameer Aggarwal", size=11, align=PP_ALIGN.CENTER)
-text(s, 40, 496, 880, 22, "Supervised by Dr. Durgesh Srivastava", size=11, italic=True, align=PP_ALIGN.CENTER, color=MUTED)
+text(s, 40, 496, 880, 22, "Supervised by Ms. Anu Thind", size=11, italic=True, align=PP_ALIGN.CENTER, color=MUTED)
 text(s, 688, 667, 224, 38, "18", size=12, bold=True, align=PP_ALIGN.RIGHT, anchor=MSO_ANCHOR.MIDDLE)
 
 prs.save(OUT)
