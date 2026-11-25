@@ -18,7 +18,7 @@ const sharp = req("sharp");
 const ROOT = path.resolve(__dirname, "..");
 const IMG = path.join(ROOT, "images");
 const FIG = path.join(IMG, "report");
-const OUT = path.join(ROOT, "docs", "THREAD_Project_Report.docx");
+const OUT = process.env.REPORT_OUT || path.join(ROOT, "docs", "THREAD_Project_Report.docx");
 const PAGE_MAP_FILE = path.join(ROOT, "docs", "page_map.json");
 const PAGE_MAP = fs.existsSync(PAGE_MAP_FILE) ? JSON.parse(fs.readFileSync(PAGE_MAP_FILE, "utf8")) : {};
 const LOGO_SMALL = path.join(process.env.TEMP, "fmt", "image1.jpeg");
@@ -27,16 +27,16 @@ const LOGO_BIG = path.join(process.env.TEMP, "fmt", "image2.jpeg");
 const TITLE = "THREAD";
 const SUBTITLE = "AN EDITORIAL CLOTHING E-COMMERCE PLATFORM";
 const COURSE = "BEE-II";
-const GUIDE = "Dr. Durgesh Srivastava";
+const GUIDE = "Ms. Anu Thind";
 const GUIDE_LINE = "Professor, Department of CSE, CUIET";
 const GUIDE_LINE2 = "Chitkara University, Punjab";
 const STUDENTS = [
   { name: "Raghav Dixit", roll: "2410990667" },
   { name: "Rahul Gheek", roll: "2410990669" },
-  { name: "Manav Mandal", roll: "241099xxxx" },
-  { name: "Sameer Aggarwal", roll: "2410990704" },
+  { name: "Manav Mandal", roll: "2410990435" },
+  { name: "Sameer Aggarwal", roll: "2410990705" },
 ];
-const STUDENT_LINE = "Raghav Dixit (2410990667), Rahul Gheek (2410990669), Manav Mandal (241099xxxx) and Sameer Aggarwal (2410990704)";
+const STUDENT_LINE = "Raghav Dixit (2410990667), Rahul Gheek (2410990669), Manav Mandal (2410990435) and Sameer Aggarwal (2410990705)";
 
 /* ---------------------------------------------------------------- images */
 
@@ -78,40 +78,19 @@ function imageRun(file, targetWidth = 585) {
 
 async function ensureSlices() {
   fs.mkdirSync(FIG, { recursive: true });
+  // The home and product captures are full scrolling pages. Crop each to the
+  // part that carries the feature under discussion so no figure is a tall strip.
   const crops = {
-    "shop-top.png": ["shop.png", 1180],
-    "order-confirmation-top.png": ["order-confirmation.png", 520],
+    "shot-home.png": ["home.png", 790],
+    "shot-product.png": ["product-detail.png", 1060],
   };
   for (const [outName, [srcName, cropH]] of Object.entries(crops)) {
     const outFile = path.join(FIG, outName);
-    if (!fs.existsSync(outFile)) {
-      const srcFile = path.join(IMG, srcName);
-      const meta = await sharp(srcFile).metadata();
-      await sharp(srcFile)
-        .extract({ left: 0, top: 0, width: meta.width, height: Math.min(cropH, meta.height) })
-        .png().toFile(outFile);
-    }
-  }
-  const plan = {
-    "home.png": 3,
-    "product-detail.png": 3,
-    "admin-product-new.png": 2,
-    "admin-product-edit.png": 3,
-  };
-  for (const [file, count] of Object.entries(plan)) {
-    const src = path.join(IMG, file);
-    const base = path.basename(file, ".png");
-    const meta = await sharp(src).metadata();
-    const overlap = 28;
-    const sliceH = Math.ceil((meta.height + (count - 1) * overlap) / count);
-    for (let i = 0; i < count; i += 1) {
-      const top = i * (sliceH - overlap);
-      const height = Math.min(sliceH, meta.height - top);
-      const out = path.join(FIG, `${base}-${i + 1}.png`);
-      if (!fs.existsSync(out)) {
-        await sharp(src).extract({ left: 0, top, width: meta.width, height }).png().toFile(out);
-      }
-    }
+    const srcFile = path.join(IMG, srcName);
+    const meta = await sharp(srcFile).metadata();
+    await sharp(srcFile)
+      .extract({ left: 0, top: 0, width: meta.width, height: Math.min(cropH, meta.height) })
+      .png().toFile(outFile);
   }
 }
 
@@ -184,8 +163,8 @@ function lead(text, rest) {
 function h1(text) {
   return new Paragraph({ heading: HeadingLevel.HEADING_1, pageBreakBefore: true, children: [new TextRun({ text, bold: true })] });
 }
-function h2(text) {
-  return new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text, bold: true })] });
+function h2(text, o = {}) {
+  return new Paragraph({ heading: HeadingLevel.HEADING_2, pageBreakBefore: o.breakBefore, children: [new TextRun({ text, bold: true })] });
 }
 function h3(text) {
   return new Paragraph({ heading: HeadingLevel.HEADING_3, children: [new TextRun({ text, bold: true })] });
@@ -223,7 +202,7 @@ function codeBlock(text) {
 
 const DX = (cm) => Math.round(cm * 567);
 
-function makeTable(headers, rows, widthsCm, cap, font = 10) {
+function makeTable(headers, rows, widthsCm, cap, font = 10, pad = 70) {
   const out = [];
   if (cap) {
     out.push(new Paragraph({
@@ -251,7 +230,7 @@ function makeTable(headers, rows, widthsCm, cap, font = 10) {
       children: row.map((val, ci) => new TableCell({
         width: { size: widths[ci], type: WidthType.DXA },
         shading: ri === 0 ? { type: ShadingType.CLEAR, fill: "E8E4DA", color: "auto" } : undefined,
-        margins: { top: 70, bottom: 70, left: 100, right: 100 },
+        margins: { top: pad, bottom: pad, left: 100, right: 100 },
         children: [new Paragraph({
           spacing: { before: 0, after: 0, line: 240 },
           alignment: AlignmentType.LEFT,
@@ -266,14 +245,7 @@ function makeTable(headers, rows, widthsCm, cap, font = 10) {
 }
 
 function figure(file, text, widthOverride) {
-  const buf = fs.readFileSync(file);
-  const meta = imageSize(buf);
-  const ratio = meta.height / meta.width;
-  let target = widthOverride || 585;
-  if (!widthOverride) {
-    if (ratio <= 0.9) target = 548;
-    else if (ratio <= 1.05) target = 438;
-  }
+  const target = widthOverride || 430;
   return [
     new Paragraph({
       alignment: AlignmentType.CENTER,
@@ -412,7 +384,7 @@ function cover() {
 function certificate() {
   return [
     ...annexureHeader("C", "CERTIFICATE"),
-    body("This is to certify that the project entitled \"THREAD - An Editorial Clothing E-Commerce Platform\" has been submitted for the Bachelor of Computer Science Engineering at Chitkara University, Punjab during the academic semester June-December 2026, is a bonafide piece of project work carried out by \"" + STUDENT_LINE + "\" towards the partial fulfilment for the award of the course " + COURSE + " under the guidance of \"Dr. Durgesh Srivastava\" and supervision."),
+    body("This is to certify that the project entitled \"THREAD - An Editorial Clothing E-Commerce Platform\" has been submitted for the Bachelor of Computer Science Engineering at Chitkara University, Punjab during the academic semester June-December 2026, is a bonafide piece of project work carried out by \"" + STUDENT_LINE + "\" towards the partial fulfilment for the award of the course " + COURSE + " under the guidance of \"" + GUIDE + "\" and supervision."),
     P("", { after: 54, line: 240 }),
     P("Sign. of Project Guide:", { align: AlignmentType.RIGHT, bold: true, size: 23, after: 10, line: 240 }),
     P(GUIDE, { align: AlignmentType.RIGHT, size: 23, after: 2, line: 240 }),
@@ -429,8 +401,8 @@ function declaration() {
     P("", { after: 24, line: 240 }),
     signatureTable(),
     P("", { after: 14, line: 240 }),
-    P("Place: Chandigarh", { size: 22, after: 2, line: 240 }),
-    P("Date:", { size: 22, after: 0, line: 240 }),
+    P("Place: Rajpura", { size: 22, after: 2, line: 240 }),
+    P("Date: 25-11-2026", { size: 22, after: 0, line: 240 }),
   ];
 }
 
@@ -439,7 +411,7 @@ function acknowledgement() {
     ...annexureHeader("E", "ACKNOWLEDGEMENT"),
     body("It is our pleasure to be indebted to various people who directly or indirectly contributed to the development of this work and who influenced our thinking, behaviour and acts during the course of study."),
     body("We express our sincere gratitude to Chitkara University, Punjab for providing us the opportunity to undertake this project as part of the curriculum."),
-    body("We are thankful to our project guide, Dr. Durgesh Srivastava, Professor, Department of Computer Science and Engineering, CUIET, Chitkara University, Punjab, for his constant support, technical review, cooperation and motivation throughout the training period, and for his valuable suggestions and precious time in accomplishing this project report."),
+    body("We are thankful to our project guide, " + GUIDE + ", Professor, Department of Computer Science and Engineering, CUIET, Chitkara University, Punjab, for her constant support, technical review, cooperation and motivation throughout the training period, and for her valuable suggestions and precious time in accomplishing this project report."),
     body("We also extend our sincere appreciation to the faculty of the department and to our external reviewers for their feedback during the review presentations."),
     body("Lastly, we would like to thank our parents for their moral support and our friends with whom we shared our day-to-day experience and received suggestions that improved the quality of our work."),
     P("", { after: 18, line: 240 }),
@@ -448,13 +420,13 @@ function acknowledgement() {
 }
 
 const TOC = [
-  ["1: INTRODUCTION", ["1.1 Background", "1.2 Problem Statement", "1.3 Objectives of the Project"]],
-  ["2: SOFTWARE AND HARDWARE REQUIREMENT SPECIFICATION", ["2.1 Hardware Requirements", "2.2 Software Requirements", "2.3 Programming Languages, Libraries and Tools", "2.4 Requirements Analysis and Feasibility"]],
-  ["3: SYSTEM DESIGN AND ARCHITECTURE", ["3.1 System Architecture", "3.2 Module Description", "3.3 Database Design", "3.4 Client Routing and Access Control", "3.5 Interface Design"]],
-  ["4: METHODOLOGY AND IMPLEMENTATION", ["4.1 Proposed Methodology and Workflow", "4.2 Session and Authentication Design", "4.3 Catalogue, Search and Variant Stock", "4.4 Order Lifecycle and Pricing", "4.5 Online Payment Workflow", "4.6 Security Design"]],
-  ["5: CODE IMPLEMENTATION", ["5.1 Implementation Steps", "5.2 Server Bootstrap and Routing", "5.3 Session Cookie Handling", "5.4 Order Placement and Pricing", "5.5 Client Routing and Route Guards", "5.6 Payment Verification"]],
-  ["6: TESTING AND RESULTS", ["6.1 Testing Approach", "6.2 Test Cases and Results", "6.3 Defects Found and Fixed", "6.4 Results and Observations", "6.5 Accessibility and Interface Validation"]],
-  ["7: CONCLUSION AND FUTURE SCOPE", ["7.1 Conclusion", "7.2 Limitations", "7.3 Future Scope"]],
+  ["1: INTRODUCTION", ["1.1 Background", "1.2 Problem Statement", "1.3 Objectives of the Project", "1.4 Scope of the Project", "1.5 Significance of the Project", "1.6 Organisation of the Report"]],
+  ["2: SOFTWARE AND HARDWARE REQUIREMENT SPECIFICATION", ["2.1 Hardware Requirements", "2.2 Software Requirements", "2.3 Programming Languages, Libraries and Tools", "2.4 Requirements Analysis and Feasibility", "2.5 Study of Existing Systems", "2.6 Proposed System"]],
+  ["3: SYSTEM DESIGN AND ARCHITECTURE", ["3.1 System Architecture", "3.2 Architecture in Text", "3.3 Module Description", "3.4 Database Design", "3.5 Client Routing and Access Control", "3.6 Interface Design", "3.7 Interface Walkthrough"]],
+  ["4: METHODOLOGY AND IMPLEMENTATION", ["4.1 Proposed Methodology and Workflow", "4.2 Session and Authentication Design", "4.3 Catalogue, Search and Variant Stock", "4.4 Order Lifecycle and Pricing", "4.5 Online Payment Workflow", "4.6 Security Design", "4.7 API Design and Response Contract", "4.8 Validation, Error Handling and Observability", "4.9 Deployment and Configuration", "4.10 Data Consistency and Transaction Boundaries"]],
+  ["5: CODE IMPLEMENTATION", ["5.1 Implementation Steps", "5.2 Server Bootstrap and Routing", "5.3 Session Cookie Handling", "5.4 Order Placement and Pricing", "5.5 Client Routing and Route Guards", "5.6 Payment Verification", "5.7 Catalogue, Search and Media Implementation", "5.8 Staff Console Implementation", "5.9 Transactional Email and OTP Delivery", "5.10 Deployment Procedure and Health Checks", "5.11 Client Error States and Recovery"]],
+  ["6: TESTING AND RESULTS", ["6.1 Testing Approach", "6.2 Test Cases and Results", "6.3 Defects Found and Fixed", "6.4 Results and Observations", "6.5 Accessibility and Interface Validation", "6.6 Performance and Scalability Observations", "6.7 Security and Failure-Path Validation", "6.8 Test Environment and Data", "6.9 Regression Checklist"]],
+  ["7: CONCLUSION AND FUTURE SCOPE", ["7.1 Conclusion", "7.2 Limitations", "7.3 Future Scope", "7.4 Lessons Learned", "7.5 Operational and Societal Impact"]],
   ["8: APPENDIX / REFERENCES", ["8.1 Appendix A - API Reference", "8.2 Appendix B - Environment Variables", "8.3 References"]],
 ];
 
@@ -473,39 +445,25 @@ function tableOfContents() {
 
 function figures() {
   const groups = [
-    ["3.1", "Home page", ["home-1", "home-2", "home-3"]],
-    ["3.2", "Shop page - catalogue with URL-driven filters", ["shop-top"]],
-    ["3.3", "Product detail - gallery, colour and size matrix, variant stock", ["product-detail-1", "product-detail-2", "product-detail-3"]],
-    ["3.4", "Bag - line items, quantity control and order summary", ["cart"]],
-    ["3.5", "Wishlist - saved pieces for the signed-in customer", ["wishlist"]],
-    ["3.6", "Checkout - delivery address, payment method and server-derived totals", ["checkout"]],
-    ["3.7", "Order confirmation after a cash-on-delivery order", ["order-confirmation-top"]],
-    ["3.8", "Order history", ["orders"]],
-    ["3.9", "Order detail with the status timeline", ["order-detail"]],
-    ["3.10", "Profile and saved addresses", ["profile"]],
-    ["3.11", "Sign-in page", ["auth-sign-in"]],
-    ["3.12", "Registration with email OTP verification", ["auth-register"]],
-    ["3.13", "Policy index with versions and effective dates", ["policies"]],
-    ["3.14", "Not-found page", ["not-found"]],
-    ["3.15", "Staff sign-in on its own endpoint", ["admin-sign-in"]],
-    ["3.16", "Admin console - 30-day counters and the order queue", ["admin-console"]],
-    ["3.17", "Admin catalogue including hidden pieces", ["admin-products"]],
-    ["3.18", "Create a piece - gallery, variants and pricing", ["admin-product-new-1", "admin-product-new-2"]],
-    ["3.19", "Edit a piece", ["admin-product-edit-1", "admin-product-edit-2", "admin-product-edit-3"]],
+    ["3.1", "Home page - editorial composition and featured pieces", "shot-home"],
+    ["3.2", "Product detail - gallery, colour and size matrix with variant stock", "shot-product"],
+    ["3.3", "Bag - SKU-level lines, quantity control and server-derived summary", "cart"],
+    ["3.4", "Checkout - saved address, payment method and server-derived totals", "checkout"],
+    ["3.5", "Order history with status filters", "orders"],
+    ["3.6", "Order detail with frozen pricing and the status timeline", "order-detail"],
+    ["3.7", "Wishlist - saved pieces for the signed-in customer", "wishlist"],
+    ["3.8", "Profile - account details, saved addresses and recent order", "profile"],
+    ["3.9", "Staff console - 30-day counters and the order queue", "admin-console"],
+    ["3.10", "Policy index with versions and effective dates", "policies"],
   ];
   const kids = [];
-  groups.forEach(([num, title, files]) => {
-    files.forEach((file, i) => {
-      const label = files.length > 1 ? `${num}${String.fromCharCode(97 + i)}` : num;
-      const part = files.length > 1 ? ` (part ${i + 1} of ${files.length})` : "";
-      const sliced = path.join(FIG, `${file}.png`);
-      const original = path.join(IMG, `${file}.png`);
-      kids.push(...figure(
-        fs.existsSync(sliced) ? sliced : original,
-        `Figure ${label}: ${title}${part}`,
-        file === "shop-top" || file === "order-confirmation-top" ? 585 : undefined,
-      ));
-    });
+  groups.forEach(([num, title, file]) => {
+    const sliced = path.join(FIG, `${file}.png`);
+    const original = path.join(IMG, `${file}.png`);
+    kids.push(...figure(
+      fs.existsSync(sliced) ? sliced : original,
+      `Figure ${num}: ${title}`,
+    ));
   });
   return kids;
 }
@@ -537,6 +495,24 @@ function chapters() {
     "Apply an editorial visual identity with measurable accessibility constraints: body text of at least 16 px, labels of at least 12 px, 44 px touch targets, semantic landmarks and URL-encoded filter state.",
     "Deploy both halves to production hosting with an explicit origin allowlist, health checks and structured logs.",
   ]).forEach((p) => k.push(p));
+  k.push(h2("1.4 Scope of the Project"));
+  k.push(body("The scope of the delivered system is the complete commercial journey of a single-label storefront, not a general-purpose marketplace. The customer can discover a piece, inspect its variants, save it, add it to a bag, check out with a saved or typed address, pay online or choose cash on delivery, and follow the order through a status timeline. The operator can sign in to a separate console, watch the order queue, move an order through its legal states, and create or edit catalogue pieces with their images, variants and prices."));
+  k.push(body("The following capabilities are inside the delivered scope:"));
+  ["Customer registration with email OTP verification, password login, silent session refresh, logout and password reset.",
+    "Catalogue browsing with URL-encoded search, category, size, colour, price and rating filters, sorting and pagination.",
+    "Variant-level stock with a colour and size matrix, server-side stock checks and transaction-safe decrement.",
+    "Persistent bag and wishlist, including the merge of a guest bag on sign-in.",
+    "Checkout with saved or typed address, delivery option, coupon, GST and two payment methods.",
+    "Online payment through Razorpay with server-side signature and amount verification, plus a webhook that shares the same confirmation path.",
+    "Customer order history and detail, and a staff console for order status, catalogue CRUD, inventory and policies.",
+    "Versioned policy pages and verified-purchase reviews."].forEach((t) => k.push(bullet(t)));
+  k.push(body("The following capabilities are deliberately outside the scope of this delivery: returns and refunds automation, multi-currency pricing, international shipping, a mobile application, a marketplace with multiple sellers, and a full content-management system for editorial pages. These are recorded in the future scope."));
+  k.push(h2("1.5 Significance of the Project"));
+  k.push(body("For a small label, the project removes the two dependencies that usually force a move to a hosted template: a developer for every catalogue change and a payments team for every online order. The staff console covers day-to-day operation, and the payment flow delegates card handling to the gateway while keeping the confirmation decision on the server. The label can operate the storefront without giving up control of its design or data."));
+  k.push(body("For the team, the project is a study in the parts of e-commerce that are easy to demo and hard to get right: stock that is attached to the combination a customer actually buys, totals that cannot be edited in the browser, an order state machine with an audit trail, and a session model that survives a container restart."));
+  k.push(body("For the department, the report documents a production-shaped deployment rather than a local demonstration. The system runs on separate client and API hosts, uses managed data services, verifies real gateway callbacks in test mode, and records the deployment defects that were found and fixed. That record is useful to the next team that attempts a similar build."));
+  k.push(h2("1.6 Organisation of the Report"));
+  k.push(body("Chapter 1 introduces the problem, objectives and scope. Chapter 2 states the requirements and studies the existing alternatives. Chapter 3 presents the architecture in text form, the module boundaries, the data model, the route table and the interface rules. Chapter 4 explains the methodology and the session, catalogue, order, payment and security paths. Chapter 5 documents the implementation, including the API registry, cookie handling, route guards and payment verification. Chapter 6 reports the testing approach, cases, defects and results. Chapter 7 concludes the report and sets out the limitations and future scope. Chapter 8 contains the API reference, environment variables and references."));
 
   /* 2 */
   k.push(h1("2: SOFTWARE AND HARDWARE REQUIREMENT SPECIFICATION"));
@@ -602,6 +578,26 @@ function chapters() {
   k.push(lead("Technical feasibility. ", "Every component is a mature open-source library or a managed service with a free or low-cost tier. The team had prior experience with React and Node.js, so the technical risk was concentrated in the payment flow and in variant stock, both of which were prototyped early."));
   k.push(lead("Economic feasibility. ", "The client is hosted on Vercel's free tier, the API on a small container, MongoDB Atlas and Redis on managed tiers, and Cloudinary on its free plan. The only unavoidable cost is the payment gateway's transaction fee, which applies per successful order rather than as a platform charge."));
   k.push(lead("Operational feasibility. ", "The staff console is a normal web page with no installation. Catalogue edits, order status changes and image uploads are performed through forms, so the label does not need a developer for day-to-day operation."));
+  k.push(h2("2.5 Study of Existing Systems"));
+  k.push(body("Four approaches were considered before the build: a hosted SaaS storefront, a plugin-based storefront on a general content platform, a headless commerce framework, and a bespoke application. Each solves the basic problem of listing a product and taking an order; they differ in where the stock truth lives, how much design control the label keeps, and how much engineering the label must own."));
+  k.push(...makeTable(["Approach", "Stock model", "Design and data control", "Operating cost", "Fit for a two-person label"], [
+    ["Hosted SaaS (for example Shopify)", "Variant stock is supported, but the rules live inside the platform", "Theme-level control; catalogue and customer data stay on the platform", "Monthly subscription plus payment and application fees", "Fast to start, but the label rents its storefront and its data"],
+    ["Plugin storefront (for example WooCommerce)", "Variant stock depends on the plugin set and its configuration", "Theme and plugin control; self-hosted database", "Hosting, plugins and ongoing maintenance", "Flexible, but plugin updates and security become a second job"],
+    ["Headless commerce framework (for example Medusa)", "Variant stock and server-side totals are part of the framework", "Full design control with a separate admin", "Hosting plus the engineering needed to run and extend it", "Strong fit, but heavier than a two-person catalogue needs"],
+    ["Bespoke application (this project)", "Variant stock, reservations and decrements are written for this catalogue", "Full control of interface, data model and deployment", "Low hosting cost; engineering time is the main investment", "Fits the catalogue and the team, provided the sensitive paths are tested"],
+  ], [3.5, 4.4, 3.6, 3.0, 3.5], "Table 2.4: Comparison of storefront approaches"));
+  k.push(body("The comparison made the trade-off explicit. A hosted platform would have delivered a working shop in days, but it would have hidden the two behaviours the project set out to study: variant-level stock and server-authoritative pricing. A headless framework would have supplied both, but it would also have supplied a large surface that the label does not need and the team would still have to operate. The bespoke route was chosen because the interesting requirements sit exactly at the boundary between the client and the API, and because the resulting system can be explained end to end."));
+  k.push(h2("2.6 Proposed System"));
+  k.push(body("The proposed system is a two-application, three-tier storefront. A React single-page client renders the storefront and the staff console; an Express API owns every rule that must not be trusted to a browser; MongoDB Atlas stores durable documents; Redis holds short-lived state; Cloudinary serves product media; Razorpay handles the card data; and SMTP delivers transactional mail. The client and the API are deployed separately, so each can be rebuilt, restarted or rolled back without taking the other down."));
+  k.push(body("The design is deliberately narrow. The client never receives database credentials, never computes a payable total that the server will accept, and never marks an order paid. The API treats every request as untrusted input, parses it with a schema, applies the rule in a service, and writes through a model. The staff console uses the same API as the storefront but a different role, which keeps one set of business rules instead of two."));
+  k.push(body("Six decisions distinguish the proposed system from a template installation:"));
+  ["Stock is stored per variant and validated again at order placement, not only when the bag is drawn.",
+    "Every amount is computed from integer paise on the server; the client renders and never submits a total.",
+    "An online order is confirmed only after an HMAC signature and an amount comparison succeed, whether the confirmation arrives from the browser or the webhook.",
+    "Sessions are reconstructed from an httpOnly refresh cookie and a Redis record, so a container restart does not sign customers out.",
+    "The staff console is a role on the same API, protected by a separate login and an authorisation middleware on every admin route.",
+    "The interface is constrained by measurable accessibility rules rather than reviewed for them at the end."].forEach((t) => k.push(bullet(t)));
+  k.push(body("Taken together, those decisions describe a system that is small enough for two people to operate but strict enough to be trusted with an order. The chapters that follow explain how each decision is implemented, how it was tested, and where the current delivery stops. The emphasis is on the paths that carry money, identity and stock, because those are the paths where a shortcut in the browser becomes a defect in the business."));
 
   /* 3 */
   k.push(h1("3: SYSTEM DESIGN AND ARCHITECTURE"));
@@ -615,7 +611,57 @@ function chapters() {
     ["Ephemeral", "Redis", "OTP codes, rate-limit counters, refresh-session records"],
     ["External", "Razorpay, Cloudinary, SMTP", "Payments, media, transactional email"],
   ], [3.2, 5.0, 8.0], "Table 3.1: Tier responsibilities"));
-  k.push(h2("3.2 Module Description"));
+  k.push(h2("3.2 Architecture in Text"));
+  k.push(body("The architecture is easier to audit when it is written as a sequence of responsibilities and calls rather than as a diagram alone. This section describes the same system in words: what each tier owns, how a request travels through it, how identity and commerce are reconstructed on every call, and what happens when a dependency fails. The description is deliberately concrete, because most of the correctness of the project lives in the order in which those steps occur."));
+  k.push(h3("3.2.1 Component view"));
+  k.push(body("The presentation tier is a React single-page application built with Vite and served as static files from Vercel. It contains the storefront routes, the staff routes, the route guards, the RTK Query cache and the design system. It holds the access token in memory, keeps the refresh token out of JavaScript entirely, and has no database driver, no gateway secret and no ability to write an order directly. Every piece of state it displays either came from the API or is local interface state such as an open drawer or a typed search term."));
+  k.push(body("The application tier is an Express 5 API running in a single container on Botkeep. Its middleware order is part of the design: Helmet sets security headers, CORS checks the origin against an explicit allowlist, the cookie parser exposes the refresh cookie, the JSON parser reads ordinary bodies while the webhook route receives a raw body for signature verification, pino-http attaches a request id and a structured log line, and route-specific rate limiters guard the sensitive doors. Behind the middleware, each domain router parses its input with Zod, calls a service, and reaches MongoDB through a Mongoose model. The API keeps no session state in process memory; a restart is invisible to a signed-in customer."));
+  k.push(body("The data tier is split by the lifetime of the data. MongoDB Atlas stores the durable documents: users, products with their variant arrays, carts, wishlists, orders with frozen line items, coupons, reviews and policies. Redis stores state that is allowed to expire: OTP records, rate-limit counters and refresh-session records. Cloudinary stores and delivers product media. Razorpay holds the card data and returns a signed payment result. SMTP carries transactional mail. The dependency direction is one-way: the client calls the API, the API calls the data tier, and no backing service ever calls the client."));
+  k.push(h3("3.2.2 Request lifecycle"));
+  k.push(body("A single request passes through the following stages. The order matters, because each stage narrows what the next one is allowed to assume."));
+  numbered([
+    "Name resolution and static delivery: the browser resolves the client host, Vercel serves the SPA shell and hashed assets, and the SPA rewrite returns index.html for a deep link such as /admin/login instead of a platform 404.",
+    "Application boot: React mounts, the session bootstrap calls the refresh endpoint with credentials enabled, and the client waits for the answer before deciding whether the visitor is a guest, a customer or a staff member.",
+    "Request construction: RTK Query builds the request, attaches the in-memory access token as an authorization header, and lets the browser attach the refresh cookie only on the authentication path for which the cookie is scoped.",
+    "Origin check: a cross-origin request triggers a preflight; the API answers only for an origin on the allowlist, so a page on another origin cannot call the API with a customer's credentials.",
+    "Middleware: the request receives an id, security headers, a parsed body, a rate-limit decision and a log entry before any route code runs.",
+    "Validation: the route parses body, query and parameters with a Zod schema. Unknown or malformed input is rejected at the boundary, so a service never receives a half-valid object.",
+    "Business rule: the service applies the rule against the current database state, using a transaction where more than one document must change together.",
+    "Response and cache: the API returns a small JSON envelope; RTK Query stores the result under a tag and invalidates the affected tags after a mutation, so the next read reflects the write without a full page reload."
+  ]).forEach((p) => k.push(p));
+  k.push(body("Two consequences follow from this sequence. First, the browser is never the authority for stock, price or payment state; it can only ask the API to perform an operation, and the API re-derives the answer from the database. Second, a read that the client cached can be stale, but a write cannot be applied to stale data, because the service re-reads the documents it is about to change inside the request."));
+  k.push(h3("3.2.3 Identity and session path"));
+  k.push(body("Registration begins with an email address and a password. The API hashes the password with bcrypt, creates the account in an unverified state, generates a six-digit code, stores only a SHA-256 hash of that code with a server-side pepper, and sends the plain code by email. Verification checks the hash, the remaining attempts and the expiry, marks the account verified and issues the first session. The plain code never exists in the database or in a log."));
+  k.push(body("Login compares the password hash and then checks the role. A staff account that presents credentials at the customer login is rejected with 403 ADMIN_PORTAL_ONLY, so the two audiences cannot accidentally share a session. On success the API returns a short-lived access JWT in the response body and sets a rotating refresh token in an httpOnly cookie. The access token lives only in Redux memory; the refresh token is unreadable to scripts and is scoped to the authentication path."));
+  k.push(body("The refresh record is stored in Redis with the user identity and an expiry. On refresh, the API validates the record, replaces it with a new one, sets a new cookie and returns a fresh access token with the public user. A 401 on any later request triggers exactly one refresh and a replay of the original request; a second failure ends the session. A guest receives a 401 on the first refresh, which the client treats as a normal outcome rather than an error. Logout revokes the Redis record and clears the cookie."));
+  k.push(body("Authorisation is applied twice. The client guards routes for usability, so a customer does not land on a staff screen and a staff member does not land in the storefront. The API applies adminRequired to every admin route for security, so a direct HTTP call without a staff token is rejected regardless of what the client rendered. The two layers use the same role value but serve different purposes: one prevents confusion, the other prevents access."));
+  k.push(h3("3.2.4 Commerce paths"));
+  k.push(body("Catalogue reads begin with the URL. Search, category, size, colour, price, rating, sort and page are parsed into a filter object, validated, and translated into a MongoDB query. A text index provides relevance across title, brand, category and colour names, and a word-start prefix pass catches fragments such as jack or a colour such as blue. Hidden products are excluded in the query rather than filtered after the fact, so pagination counts remain correct."));
+  k.push(body("The bag stores a SKU, not a product id. Adding an item re-reads the variant on the server, rejects a quantity above the available stock and returns the recalculated bag. The client may render an optimistic quantity, but the server's answer replaces it. Checkout re-reads every line again, applies the coupon and delivery rules, computes GST and the grand total from integer paise, and only then writes the order."));
+  k.push(body("A cash-on-delivery order is written and confirmed in one transaction: the order document is created with a frozen snapshot of the line items and the shipping address, stock is decremented for each SKU, and a timeline entry records the confirmation. An online order is written in a payment-pending state. The client asks the API to create a gateway order for the server-computed amount, opens Razorpay Checkout with the returned order id and public key, and posts the payment id, gateway order id and signature back to the API. The API recomputes the HMAC-SHA256 signature, compares the amount and currency with the stored order, and only then confirms it. The webhook runs the same confirmation path with a raw-body signature check, so a browser callback and a gateway callback converge on one idempotent transition."));
+  k.push(body("The staff path shares the same order service but a different entry point. Staff sign in through /api/admin/login, receive a staff access token, and pass adminRequired on every subsequent admin call. Status changes are validated against the legal transition table before they are written, and each change appends to the same timeline the customer reads. Catalogue edits write the product document and upload media through signed Cloudinary requests; the storefront sees the change on its next read, with no deployment."));
+  k.push(h3("3.2.5 Deployment and failure behaviour"));
+  k.push(body("The deployed system has two independent origins. The client is a static build on Vercel with an SPA rewrite; the API is a Node.js container on Botkeep with MongoDB Atlas, managed Redis, Cloudinary, Razorpay and SMTP as backing services. TLS terminates at each host. The API accepts only the configured client origin, reads its secrets from environment variables, and exposes a health endpoint that reports the state of its dependencies. The client reads a small configuration endpoint to decide whether online payment is available, so a missing gateway key degrades the checkout instead of breaking the page."));
+  k.push(body("Failure behaviour was designed rather than discovered. The table below records what each failure does to the customer experience."));
+  k.push(...makeTable(["Failure", "Behaviour", "Why it is safe"], [
+    ["API container restarts", "The access token is refreshed from the httpOnly cookie and the Redis record; the customer stays signed in", "No session state lives in process memory"],
+    ["Redis is unavailable", "The health endpoint reports the dependency as down and session, OTP and rate-limit operations fail rather than bypass their checks", "The system does not silently drop a security control"],
+    ["MongoDB is unavailable", "Reads and writes return a server error and the client shows a retry state", "No fabricated catalogue or order data is rendered"],
+    ["Razorpay is unavailable", "The configuration endpoint hides the online option and cash on delivery remains usable", "Checkout degrades to a supported path"],
+    ["Checkout is retried", "The idempotency key returns the original order instead of creating a second one", "A network retry cannot duplicate an order"],
+    ["A payment signature is wrong", "Verification returns 400 and the order stays in payment pending", "A client callback cannot mark an order paid"],
+  ], [4.0, 7.4, 4.8], "Table 3.2: Failure behaviour by dependency"));
+  k.push(h3("3.2.6 Architecture decisions and trade-offs"));
+  k.push(body("Every structural choice buys one property at the cost of another. The table below states both sides, because a report that lists only the benefits is not useful to the next team."));
+  k.push(...makeTable(["Decision", "Alternative considered", "What it buys", "What it costs"], [
+    ["Separate SPA and API", "A server-rendered monolith", "Independent deploys and a clear trust boundary", "Two hosts, CORS configuration and a cross-site cookie"],
+    ["MongoDB documents", "A relational schema", "Nested variants and frozen order snapshots fit the domain", "Transactions and indexes need explicit discipline"],
+    ["Redis for ephemeral state", "In-process memory", "Sessions, OTPs and limits survive a restart and are shared", "One more dependency to run and monitor"],
+    ["Server-derived pricing", "Client-computed totals", "A modified page cannot change what is charged", "An extra server read on every checkout"],
+    ["Signature verification", "Trusting the checkout callback", "An unpaid order cannot be marked paid", "Webhook and reconciliation paths must be maintained"],
+    ["Hand-written CSS", "A component kit", "Brand control and measurable accessibility", "More CSS to own and review"],
+  ], [3.4, 3.6, 4.8, 4.4], "Table 3.3: Architecture decisions and trade-offs"));
+  k.push(h2("3.3 Module Description"));
   k.push(body("The API is organised by domain module. Each module owns its routes, schemas, service and data access, and exposes only its router to the central registry."));
   k.push(...makeTable(["Module", "Responsibility"], [
     ["auth", "Registration, OTP verification, login, refresh, logout, password reset, Google entry point"],
@@ -631,8 +677,8 @@ function chapters() {
     ["policies", "Versioned, effective-dated store policies"],
     ["admin", "Staff login, dashboard, catalogue CRUD, inventory, order queue, policy editing"],
     ["emails", "Templated transactional mail for OTP, verification and order events"],
-  ], [3.6, 12.6], "Table 3.2: API modules"));
-  k.push(h2("3.3 Database Design"));
+  ], [3.6, 12.6], "Table 3.4: API modules"));
+  k.push(h2("3.4 Database Design"));
   k.push(body("MongoDB was chosen because a product is naturally a document with a nested variant array, and because orders keep a frozen copy of what was bought rather than a set of live foreign keys. Money is stored as integer paise everywhere, never as a floating-point rupee value."));
   k.push(...makeTable(["Collection", "Key fields", "Purpose"], [
     ["users", "name, email, phone, passwordHash, role, isEmailVerified, addresses[]", "Accounts and addresses"],
@@ -643,9 +689,9 @@ function chapters() {
     ["coupons", "code, type, value, minSubtotal, maxDiscount, expiresAt, isActive", "Discount rules"],
     ["reviews", "productId, userId, rating, title, body, isVerifiedPurchase", "Product feedback"],
     ["policies", "slug, title, version, effectiveAt, body", "Published policies"],
-  ], [2.6, 9.4, 4.2], "Table 3.3: Collections and key fields"));
+  ], [2.6, 9.4, 4.2], "Table 3.5: Collections and key fields", 9.5, 40));
   k.push(body("Two indexes carry most of the read load: a text index over the product title, brand, category and colour names for catalogue search, and a unique index on the variant SKU so that a bag line can always be resolved to exactly one product, colour and size. Orders additionally carry a unique order number and an idempotency key, so a retried checkout cannot create a duplicate order."));
-  k.push(h2("3.4 Client Routing and Access Control"));
+  k.push(h2("3.5 Client Routing and Access Control"));
   k.push(body("The client is a single-page application. Access is shaped by two guards: RequireCustomer keeps staff out of the storefront, and RequireAdmin sends guests to the staff portal and customers to the home page. The cart is intentionally open to guests, because a first-time visitor should be able to build a bag before creating an account."));
   k.push(...makeTable(["Path", "Access", "Page"], [
     ["/", "Guest, Customer", "Editorial home page"],
@@ -664,11 +710,13 @@ function chapters() {
     ["/admin/products/new", "Staff", "Create a piece"],
     ["/admin/products/:slug/edit", "Staff", "Edit a piece"],
     ["*", "Public", "Not-found page"],
-  ], [5.2, 4.0, 7.0], "Table 3.4: Client routes and access"));
-  k.push(h2("3.5 Interface Design"));
+  ], [5.2, 4.0, 7.0], "Table 3.6: Client routes and access"));
+  k.push(h2("3.6 Interface Design"));
   k.push(body("The interface uses a paper-and-ink palette with a serif display face for headings and a neutral sans face for controls and body copy. Elevation is expressed with hairlines rather than shadows, and the layout is a flat grid with generous whitespace. Bootstrap Icons is the only icon set; there is no emoji anywhere in the product."));
   k.push(body("Accessibility is treated as a constraint rather than a review step. Body text is at least 16 px and labels at least 12 px with letter-spacing, every interactive target is at least 44 px, icon-only controls carry an aria-label, toggles expose aria-pressed, forms use real label elements with inline role=alert errors, focus is always visible, and each page has a single h1 inside a main landmark with a skip link ahead of it."));
-  k.push(body("The screenshots below were captured from the live deployment at a desktop viewport with real data: a signed-in customer with a populated bag and order history, and staff credentials for the admin console. Long pages are reproduced in numbered parts so that the interface remains legible in print."));
+  k.push(body("The visual system is expressed as tokens rather than one-off values: a small spacing scale, three radii, a type scale with a 12 px label floor, a small set of border and surface colours, and motion durations that respect prefers-reduced-motion. Product cards, buttons, fields and panels consume those tokens, so a change to the scale propagates consistently. The result is a flat editorial surface: hairlines instead of shadows, square panels instead of rounded cards, and photography carrying most of the colour."));
+  k.push(h2("3.7 Interface Walkthrough"));
+  k.push(body("The ten figures below were captured from the live deployment at a desktop viewport with real data: a signed-in customer with a populated bag and order history, and staff credentials for the console. Each figure is reproduced once, at a size that keeps the interface legible on a single page; scrolling pages are represented by the region that carries the feature under discussion rather than by a tall strip."));
   k.push(...figures());
 
   /* 4 */
@@ -711,6 +759,57 @@ function chapters() {
     ["Webhooks", "Raw-body HMAC verification before any state change"],
     ["Logging", "Structured JSON with request ids; secrets and tokens are never logged"],
   ], [4.2, 12.0], "Table 4.1: Security controls"));
+  k.push(h2("4.7 API Design and Response Contract"));
+  k.push(body("The API is resource-oriented and uses plural nouns for collections: /api/products, /api/cart, /api/orders, /api/policies and /api/admin/orders. Actions that are not a simple create, read, update or delete are expressed as a sub-resource with a verb, such as /api/payments/razorpay/verify or /api/admin/orders/:id/status. The shape is intentionally conventional so that a new route can be reviewed against the existing ones without a style debate."));
+  k.push(body("Every response uses one envelope. A successful response carries success set to true and a data field; a failure carries success set to false and an error object with a stable code, a human-readable message and optional details. The client branches on the code, not on the message text, so copy can change without breaking behaviour. Paginated collections add a meta object with the page, the page size and the total count, which lets the interface render pagination without a second request."));
+  k.push(body("Status codes are used consistently. The table below records the contract that the client can rely on."));
+  k.push(...makeTable(["Status", "Used when", "Client behaviour"], [
+    ["200 OK", "A read or an update succeeded", "Render the returned data"],
+    ["201 Created", "An order, review or catalogue piece was created", "Navigate to the created resource"],
+    ["400 Bad Request", "The request is syntactically valid but violates a rule, such as a bad coupon or a failed payment signature", "Show the message against the relevant control"],
+    ["401 Unauthorized", "The access token is missing or expired", "Attempt one refresh, then replay or end the session"],
+    ["403 Forbidden", "The role is not allowed, or staff credentials were used on the customer login", "Redirect to the correct portal"],
+    ["404 Not Found", "The product, order or policy does not exist", "Render the not-found state"],
+    ["409 Conflict", "A stock, duplicate or state-transition conflict", "Refresh the affected view and explain the conflict"],
+    ["422 Unprocessable Entity", "Zod rejected a field before any service ran", "Show field-level errors"],
+    ["429 Too Many Requests", "A route budget was exhausted", "Ask the customer to wait; do not retry in a loop"],
+    ["500 / 503", "An unexpected error or an unavailable dependency", "Show a retry state; never fabricate data"],
+  ], [3.3, 8.6, 4.3], "Table 4.2: HTTP status contract"));
+  k.push(body("Order creation additionally accepts an Idempotency-Key. The first request stores the key with the resulting order; a retry with the same key returns the original order with an idempotentReplay flag instead of creating a second one. This is what makes a network retry, a double click or the client's 401 replay safe. The key is scoped to the customer and has a bounded lifetime, so it cannot be used to read another customer's order."));
+  k.push(body("The API is not versioned with a path prefix. The client and the API are deployed from the same repository and verified together, and the envelope leaves room for additive fields. A breaking change would be introduced as a new route rather than by silently changing the meaning of an existing one."));
+  k.push(h2("4.8 Validation, Error Handling and Observability"));
+  k.push(body("Validation follows a parse, do not validate rule. Each route defines a Zod schema for the body, the query and the parameters, and the handler receives the parsed object rather than the raw request. Parsing strips unknown fields, coerces the values that are safe to coerce and rejects the rest with a field-level error. This keeps the service layer free of defensive checks and makes the accepted shape of every route readable in one place."));
+  k.push(body("Errors are handled in one place. A service throws a typed error with an HTTP status and a stable code; the central error middleware converts it into the response envelope. Operational errors, such as a sold-out variant or a bad signature, keep their message. Unexpected errors are logged with the request id and returned as a generic 500, so an internal stack trace never reaches the browser. In production the logger redacts authorization headers, cookies, passwords and gateway secrets."));
+  k.push(body("Every request carries an id from the moment it enters the API. The id appears in the structured log line, in the error response and in the server-side log for the same request, which turns a customer report into a single search. The health endpoint reports the state of MongoDB, Redis, search and Razorpay, so a deployment can be checked before a browser is opened. The client mirrors this discipline with explicit loading, empty, error and retry states on every data-bearing page; a failed request produces an explanation and a way forward, not a blank screen."));
+  k.push(body("Error codes are treated as part of the interface contract rather than as debugging text. A sold-out variant, an expired coupon, a rejected signature and an exhausted rate limit each have a stable code that the client can branch on and the test suite can assert. The message is written for the customer, while the log line keeps the request id and the technical detail. This separation lets the interface explain a failure without exposing an internal path, a stack trace or a secret."));
+  k.push(body("Health reporting follows the same principle. The health endpoint is public but not verbose: it reports each dependency as available or unavailable and returns a non-success status when a required dependency is down. The configuration endpoint exposes only the values a browser legitimately needs, such as the public gateway key and the email delivery mode. Neither endpoint exposes a connection string, a secret or an internal hostname."));
+  k.push(h2("4.9 Deployment and Configuration", { breakBefore: true }));
+  k.push(body("Configuration is environment-specific and never committed. The client reads its API base URL and public gateway key at build time; the API reads its database, Redis, JWT, gateway, Cloudinary, SMTP and CORS values at boot. The API validates the required values before it starts listening, so a missing secret fails the deployment instead of producing a half-working instance. SERVER_PORT takes precedence over PORT because the hosting panel injects the former, with a fallback so the same image also runs locally."));
+  k.push(body("The client is built with Vite and deployed to Vercel as static output. A rewrite sends every unknown path to index.html, which is what makes a deep link such as /admin/login work on a static host. The API is deployed as a single container on Botkeep. A root manifest and lockfile let the panel install dependencies without a separate build step, and a pre-start guard verifies that the runtime dependencies are present before the process starts. The container exposes the health endpoint and reads the same environment file in every restart."));
+  k.push(...makeTable(["Concern", "Development", "Production"], [
+    ["Client origin", "Local Vite dev server", "Vercel domain, served over HTTPS"],
+    ["API origin", "Local Express process", "Botkeep container behind HTTPS"],
+    ["Database", "Local MongoDB or an Atlas development cluster", "MongoDB Atlas production cluster"],
+    ["Redis", "Local Redis instance", "Managed Redis with persistence"],
+    ["Payments", "Razorpay test keys", "Razorpay test mode for this delivery; live keys are a launch step"],
+    ["Email", "SMTP or the console transport", "SMTP with a verified sender"],
+    ["Refresh cookie", "SameSite=Lax on localhost", "SameSite=None with Secure is required for the cross-site client"],
+  ], [4.0, 6.2, 6.0], "Table 4.3: Environment configuration"));
+  k.push(body("The deployment order is client after API. The API is deployed first and its health endpoint is checked; the client is then built against the deployed API origin, and the origin is added to the API allowlist. A rollback is a redeploy of the previous build on either host, which is possible because the two halves are independent and the database schema is additive."));
+  k.push(h2("4.10 Data Consistency and Transaction Boundaries"));
+  k.push(body("The order path changes more than one document: an order is written, stock is decremented for every line, and a timeline entry is appended. Those writes must succeed or fail together, so order placement runs inside a MongoDB transaction. The service re-reads each SKU inside the transaction, verifies that the requested quantity is still available, writes the order with a frozen snapshot of the line items and the address, decrements each variant and appends the first timeline entry. If any step fails, the transaction aborts and no stock is lost."));
+  k.push(body("Reads that do not change shared state do not need a transaction. Updating a cart line, toggling a wishlist item or editing a profile is a single-document write, which MongoDB applies atomically. The distinction matters because a transaction has a cost and a retry behaviour of its own; using one for every write would add complexity without adding a guarantee."));
+  k.push(body("Uniqueness is enforced by indexes rather than by a prior read. The variant SKU is unique, the order number is unique, and the idempotency key is unique per customer. Payment identifiers use partial unique indexes so that documents without a payment id do not collide with one another; an earlier build used a sparse index that still indexed explicit nulls and rejected a second cash-on-delivery order. The fix was to make the index partial on the existence of the field, which is the correct expression of the rule."));
+  k.push(body("Orders deliberately denormalise the product. A line stores the title, the SKU, the size, the colour and the unit price at the time of purchase, rather than a live reference that would change when the catalogue changes. The product page and the order detail therefore answer different questions: the page shows what is for sale now, and the order shows what was bought then. That separation is what makes a historical total reproducible even after a price edit."));
+  k.push(...makeTable(["Write path", "Documents touched", "Boundary"], [
+    ["Add or update a bag line", "Cart", "Single-document atomic write"],
+    ["Place a cash-on-delivery order", "Order, products (stock), timeline", "Multi-document transaction"],
+    ["Confirm an online payment", "Order, timeline", "Idempotent transition after signature verification"],
+    ["Advance or cancel an order", "Order, timeline", "Validated transition, single order document"],
+    ["Create or edit a catalogue piece", "Product", "Single-document write plus media upload"],
+    ["Publish a policy version", "Policy", "Single-document write with an effective date"],
+  ], [5.2, 5.6, 5.4], "Table 4.4: Write paths and consistency boundaries"));
+  k.push(body("The transaction boundary is kept as short as possible. Signature verification, coupon evaluation and address validation happen before the transaction opens; the transaction contains only the reads that decide stock and the writes that must be atomic. This reduces the window in which two checkouts can contend for the same variant and keeps the retry story simple: a failed transaction is retried from the service entry point, not from the middle of a partially applied order."));
 
   /* 5 */
   k.push(h1("5: CODE IMPLEMENTATION"));
@@ -782,6 +881,35 @@ export function setRefreshCookie(res, token) {
 <Route path="*" element={<NotFoundPage />} />`));
   k.push(h2("5.6 Payment Verification"));
   k.push(body("The verify endpoint is deliberately boring: it recomputes the signature, compares the amount, and only then calls the order service to confirm. Verification is a pure function of the gateway response and the server secret, so it can be unit-tested without a browser. The webhook shares the same confirmation path, which means a payment confirmed by the browser and a payment confirmed by the gateway converge on exactly one state transition; the operation is idempotent by design."));
+  k.push(h2("5.7 Catalogue, Search and Media Implementation"));
+  k.push(body("The catalogue query builder is the busiest read path in the system, so it is written as a sequence of small decisions rather than one large query. Search terms are trimmed and split; category, size and colour are matched against the variant array; price and rating become range predicates; sort is mapped through an allowlist so an unknown value cannot order by an unindexed field; and pagination is applied last. Hidden products are excluded in the filter, which keeps the total count and the page contents consistent."));
+  k.push(body("Search uses a MongoDB text index for relevance and a word-start prefix expression for fragments. The text index covers the title, brand, category and colour names; the prefix pass covers a short fragment such as jack, a partial colour such as blu, and the label name. Results are ordered by text score first and by the requested sort second, so a search for jacket still returns the jacket before a related piece. The index is declared on the model and created by the seed script, so a fresh environment has the same query plan as production."));
+  k.push(body("Product media is uploaded to Cloudinary from the staff console through a signed request; the API never proxies the binary and never stores a local path. The product document keeps an ordered gallery and a variant array. Each variant has a SKU, a size, a colour, a stock count and an optional price override. The SKU is the stable identity of a sellable combination, which is why the bag, the stock check and the order line all point at it rather than at a product id."));
+  k.push(h2("5.8 Staff Console Implementation"));
+  k.push(body("The staff console is a set of ordinary routes behind a separate login. The public staff login is mounted before the role-gated admin router, so an unauthenticated request can reach the login handler while every other admin route passes through adminRequired. The console reads the same order service as the storefront: the dashboard aggregates the last thirty days, the queue filters by state, and the detail view exposes only the transitions that are legal from the current state."));
+  k.push(body("Status changes are validated against a transition table before they are written. A packed order cannot jump to delivered, a cancelled order cannot be shipped, and a payment-pending order cannot be packed until the payment is confirmed. Each accepted transition appends a timeline entry with the new state, the time and the actor, so the customer and the operator read the same history. The catalogue form creates or edits the product document, its gallery and its variant array, and can hide a piece from the storefront without deleting it."));
+  k.push(body("The inventory view groups stock by variant and surfaces low-stock combinations rather than a single product total. That view is the operational counterpart of the variant matrix on the product page: the customer sees which combination can be bought, and the operator sees which combination needs attention. Uploads, edits and status changes all pass through the same validation and authorisation layers as the rest of the API; the console has no privileged back door."));
+  k.push(h2("5.9 Transactional Email and OTP Delivery"));
+  k.push(body("Transactional mail is sent through Nodemailer over SMTP, with a console transport for local development and a Brevo-compatible transport where SMTP credentials are not available. The templates cover the OTP, the welcome message after verification and the order confirmation. The verification event is published only after the account is marked verified, so a welcome message cannot arrive before the address has been proven. The client reads the delivery mode from the configuration endpoint and shows the console hint only when mail is actually being printed rather than sent."));
+  k.push(body("OTP delivery is bounded on both sides. The code is generated with a cryptographic random source, stored as a SHA-256 hash with a server-side pepper, and given a ten-minute lifetime. Verification allows five attempts; resend has a 60-second cooldown, five sends per hour per address and ten per day per network. A failed send is reported to the caller, and the send counters are still incremented, so a retry loop cannot be used to bypass the budget. The plain code is written only into the email body and is never logged."));
+  k.push(h2("5.10 Deployment Procedure and Health Checks"));
+  k.push(body("The deployment is a repeatable sequence rather than a manual upload. The steps below are the ones used for the delivered environment."));
+  numbered([
+    "Push the verified commit to the main branch of the repository.",
+    "Deploy the API container on Botkeep and confirm that the root manifest and lockfile are present, so the panel can install dependencies without a separate build step.",
+    "Set the API environment: database and Redis URLs, JWT secrets, gateway keys, Cloudinary credentials, SMTP settings and the client origin.",
+    "Start the container and confirm that the pre-start dependency guard passes and that SERVER_PORT or its fallback is honoured.",
+    "Open /api/health and confirm that MongoDB, Redis, search and Razorpay are reported as available.",
+    "Send a preflight request from the deployed client origin and confirm that the allowlist returns the expected headers.",
+    "Build the client against the deployed API origin and publish it to Vercel with the SPA rewrite.",
+    "Walk the smoke path on the deployed site: guest home, sign in, product detail, add to bag, checkout, order history and the staff console."
+  ]).forEach((p) => k.push(p));
+  k.push(body("Two deployment defects shaped this procedure. The first was a missing root manifest: the panel started the API without a package.json at the project root and the process exited before it could listen. The fix was a root manifest and lockfile, a pre-start guard and a documented start command. The second was a port mismatch: the panel injected SERVER_PORT while the application read PORT. The fix was an explicit precedence rule with a local fallback. Both defects are now checked before a deployment is declared successful, which is why the health endpoint and the preflight are part of the procedure rather than an afterthought."));
+  k.push(h2("5.11 Client Error States and Recovery"));
+  k.push(body("The client is written on the assumption that every request can fail. RTK Query exposes a loading, a success and an error state for each endpoint, and each page renders all three rather than treating the happy path as the default. A first load shows a skeleton; a refetch dims the existing content instead of replacing it with a spinner; an error shows a short explanation and a retry control. No page fabricates a placeholder product, a zero total or a fake order when the API is unavailable."));
+  k.push(body("Session recovery is centralised. A 401 from an ordinary request triggers one refresh and a replay of the original request; the replay is marked so that a second 401 ends the session instead of looping. Mutations that carry an idempotency key reuse the same key on the replay, which is why a retried checkout returns the original order rather than creating a second one. The refresh call itself is excluded from the retry rule, because a failed refresh is the signal that the visitor is a guest."));
+  k.push(body("Checkout has its own recovery rules because it is the one flow where a network failure can leave the customer unsure whether an order exists. If order creation times out, the client keeps the idempotency key and offers a retry; the retry either returns the order that was created or creates the first one. If the payment modal is closed, the order remains in payment pending and appears in the order history with that state; the interface does not show a confirmation it did not receive. If the gateway configuration is unavailable, the online method is hidden before the customer reaches the payment step."));
+  k.push(body("Form errors are shown where the correction is made. Each field has a real label, an inline message with role=alert and a visible focus state; the typed values survive a rejected submit. A route-level error boundary catches an unexpected render failure and offers a reload instead of a blank page. The result is an interface that is honest about failure: it distinguishes between loading, empty, unavailable and rejected, and it never pretends that a write succeeded when the server did not confirm it."));
 
   /* 6 */
   k.push(h1("6: TESTING AND RESULTS"));
@@ -823,6 +951,47 @@ export function setRefreshCookie(res, token) {
     "Each page exposes one h1 inside a main landmark, with a skip link ahead of the header.",
     "Filter, search and sort state survive a copy-paste of the URL and a browser back action.",
     "The 360 px layout keeps the bag summary and the checkout button reachable without horizontal scrolling."].forEach((t) => k.push(bullet(t)));
+  k.push(h2("6.6 Performance and Scalability Observations"));
+  k.push(body("The project did not attempt a production load test; the observations below are the ones that can be justified from the implementation and from the deployed behaviour during testing."));
+  k.push(...makeTable(["Aspect", "Observation", "Implication"], [
+    ["Catalogue search", "The text index and the word-start prefix pass resolve the tested queries without a collection scan", "Search cost grows with the index, not with the full catalogue"],
+    ["Pagination", "Every list route applies a page and a page size and returns a total count", "A large catalogue cannot return an unbounded response"],
+    ["Client reads", "RTK Query caches each resource under a tag and invalidates it after a mutation", "Repeated navigation does not repeat every request"],
+    ["Session checks", "Refresh records and rate-limit counters are single-key Redis operations with a TTL", "Expiry is handled by the store rather than by a sweep job"],
+    ["API scaling", "The API keeps no session state in process memory", "A second container can be added behind a load balancer without sticky sessions"],
+    ["Delivery", "Product media is served by Cloudinary rather than by the API container", "Image bandwidth does not compete with API requests"],
+  ], [3.6, 7.4, 5.2], "Table 6.3: Performance observations"));
+  k.push(body("The current deployment runs a single API container, which is sufficient for the traffic a two-person label generates. The architecture leaves room to scale horizontally because the only state that must be shared already lives in Redis and MongoDB. The first bottleneck under growth would be the database connection pool rather than the HTTP layer, which is why the catalogue reads are indexed and paginated before any scaling work is considered."));
+  k.push(h2("6.7 Security and Failure-Path Validation"));
+  k.push(body("Functional tests confirm that the happy path works. Security tests confirm that the unhappy paths fail in the right direction. The following abuse cases were exercised deliberately, either with a scripted request or through the interface."));
+  ["A tampered Razorpay signature was posted to the verify endpoint. The API returned 400 PAYMENT_SIGNATURE_INVALID and the order remained in payment pending, with no stock change.",
+    "Staff credentials were submitted to the customer login. The API verified the password and then returned 403 ADMIN_PORTAL_ONLY, so the staff role was not silently downgraded to a customer session.",
+    "A customer opened /admin in the browser. The client guard redirected away from the console, and a direct request to an admin endpoint without a staff token returned 403.",
+    "A quantity above the available stock was submitted for a variant. The API rejected the line and the bag count did not change.",
+    "The same checkout request was sent twice with the same idempotency key. The second response returned the original order instead of creating a duplicate.",
+    "A request from an origin outside the allowlist was rejected as CORS_REJECTED before it reached a route handler.",
+    "A burst of authentication requests exhausted the route budget and returned 429, while ordinary catalogue reads continued to work."].forEach((t) => k.push(bullet(t)));
+  k.push(body("The results were consistent with the design intent: the system fails closed on identity, money and stock, and fails visibly on dependencies. The one deliberate exception is the online payment option. When the gateway configuration is unavailable, the storefront hides the online method and keeps cash on delivery available, because a checkout that cannot take money is worse than a checkout that offers one supported path."));
+  k.push(h2("6.8 Test Environment and Data"));
+  k.push(body("Development and verification ran on Windows 11 with Node.js 24 LTS, a local MongoDB instance for early iterations and an Atlas cluster for the deployed build, and Chrome DevTools for layout and network inspection. Postman was used for direct API calls, including the signature and authorisation cases that are awkward to reproduce through the interface. The deployed environment was tested from the same machine over the public internet, so the CORS, cookie and deep-link behaviour reflect the real origins rather than a local proxy."));
+  k.push(body("The catalogue used a small set of real pieces so that the variant matrix, stock caps and order totals could be checked against known values. The customer account carried a populated bag and two orders in different states; the staff account was separate and was used for the console checks. The gateway ran in test mode, which is why the report records the payment flow as verified but not live. Automated browser runs were limited by the API's own rate limits, a useful demonstration that the budgets apply to scripts as well as people."));
+  k.push(body("Each verification run started from a catalogue state produced by the seed script: the same pieces, variants, stock counts and policy versions. Orders created during a run stayed on the test customer, so the console queue and the customer history described the same records, and a failed run could be repeated without inventing new data. The script also created the staff account and the policy documents, which made the deployment reproducible on a fresh database instead of dependent on hand-entered records. Where a test needed a sold-out variant or an expired coupon, the record was changed deliberately and restored afterwards, so the test proved the rule rather than an accidental state."));
+  k.push(h2("6.9 Regression Checklist"));
+  k.push(body("The checklist below is the minimum set of checks run against a new deployment before it is treated as ready. It is deliberately short enough to run by hand and specific enough to catch the defects that have already appeared once."));
+  k.push(...makeTable(["ID", "Check", "Expected result"], [
+    ["R-01", "Open the home, shop and a product detail as a guest", "Pages render from the API; no console error; filters and variants work"],
+    ["R-02", "Sign in, reload and sign out", "Session survives the reload; sign-out clears the cookie and returns the guest header"],
+    ["R-03", "Request an OTP twice within a minute", "The second request is refused by the resend cooldown"],
+    ["R-04", "Try to add a sold-out variant by direct request", "The API rejects the line and the bag count is unchanged"],
+    ["R-05", "Add to the bag as a guest, then sign in", "Guest lines merge into the account bag without duplicates"],
+    ["R-06", "Apply a coupon and compare the totals", "Subtotal, discount, GST and total agree with the server calculation"],
+    ["R-07", "Place a cash-on-delivery order", "Order, stock decrement and timeline commit together; the order appears in history and the console"],
+    ["R-08", "Post a payment with a tampered signature", "400 PAYMENT_SIGNATURE_INVALID; the order stays payment pending"],
+    ["R-09", "Open /admin as a customer and call an admin route without a token", "The client redirects and the API returns 403"],
+    ["R-10", "Open a deep link and send a preflight from the deployed origin", "The SPA rewrite serves the app and CORS returns the allowlisted headers"],
+    ["R-11", "Check /api/health and /api/config", "Dependencies are reported and the client receives its public configuration"],
+  ], [1.6, 7.6, 7.0], "Table 6.4: Deployment regression checklist"));
+  k.push(body("The checklist is not a substitute for the test cases in Table 6.1; it is the shorter path used after a deployment. R-04 bypasses the disabled button and R-08 bypasses the browser, so a deployment that passes only the interface checks has not been verified."));
 
   /* 7 */
   k.push(h1("7: CONCLUSION AND FUTURE SCOPE"));
@@ -843,6 +1012,17 @@ export function setRefreshCookie(res, token) {
     "Responsive image delivery with modern formats and low-quality placeholders.",
     "Observability with distributed tracing across the API and the gateway callbacks.",
     "Multi-currency and international shipping if the label expands beyond India."].forEach((t) => k.push(bullet(t)));
+  k.push(h2("7.4 Lessons Learned"));
+  k.push(lead("Correctness is a placement problem. ", "The most valuable decisions in the project were about where a rule lives, not how clever the rule is. Stock, price and payment state became reliable only when the browser stopped being the authority for them. Moving those three decisions to the server removed a class of defects that no amount of client-side validation would have closed."));
+  k.push(lead("A demo can hide the hard part. ", "A storefront that lists a product and takes an order is a weekend project. The weeks went into the parts a demo skips: a sold-out combination, a retried checkout, a signature that does not match, a container that restarts mid-session, a deep link on a static host. Writing each of those as a test case changed the design more than any feature request."));
+  k.push(lead("Deployment is part of the architecture. ", "The two defects that blocked the first deployment were not business-logic bugs. They were a missing manifest and a port that the panel injected under a different name. The fix was small, but it changed the way the project is documented: the start command, the environment and the health check are now first-class parts of the deliverable."));
+  k.push(lead("Accessibility improves the interface. ", "Treating the 16 px body, the 12 px label floor and the 44 px target as constraints rather than a checklist produced a calmer layout. The rules forced decisions about hierarchy early, and the resulting pages are easier to scan at a desktop width and usable at 360 px without a separate mobile design."));
+  k.push(lead("Scope control is a feature. ", "The system deliberately stops at the edge of returns, multi-currency and a mobile application. Each of those would have doubled a surface that the team could not test to the same standard. Naming them as future scope kept the delivered path complete instead of spreading the same effort across half-finished modules."));
+  k.push(h2("7.5 Operational and Societal Impact"));
+  k.push(body("For the label, the practical impact is independence. Catalogue changes, order status and policy updates no longer wait for a developer, and the payment flow does not require the label to handle card data. The staff console is deliberately plain: it runs in a browser, needs no installation and exposes only the actions that are legal at the current state. That reduces the training burden for a small team and lowers the chance of an accidental transition."));
+  k.push(body("For the customer, the impact is predictability. The variant matrix shows what can actually be bought, the bag and checkout agree on the total, and the order history shows the same timeline the operator sees. The interface avoids dark patterns: there is no fake urgency, no pre-ticked add-on and no hidden charge at the last step. Prices are shown with tax broken out, and the delivery promise is stated before the order is placed."));
+  k.push(body("For the wider context, the project is a small argument for local, owned commerce infrastructure. A label does not need a marketplace to reach its customers, and it does not need to hand its catalogue and customer list to a platform in order to take a payment. The trade-off is engineering and operational responsibility, which this report has tried to state honestly rather than hide."));
+  k.push(body("That honesty is also the practical position of the deliverable. The system is complete enough to run a real catalogue and take a real order, and it is explicit about the work that remains before live payments and cross-site sessions can be offered without caveats. The value of the project is not that it removes every risk, but that it places each remaining risk where it can be seen, tested and fixed."));
 
   /* 8 */
   k.push(h1("8: APPENDIX / REFERENCES"));
